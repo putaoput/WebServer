@@ -12,7 +12,7 @@ class TimeManager;
 class MyEpoll
 {
 public:
-	MyEpoll(int _port,std::shared_ptr<ThreadPool> _threadPool, std::shared_ptr<TimerManager> _timerManager);
+	MyEpoll(int _port, std::shared_ptr<TimerManager> _timerManager);
 	bool is_valid();
 	int add(std::shared_ptr<Task> _task);
 	int mod(std::shared_ptr<Task> _task);
@@ -29,7 +29,6 @@ private:
 	bool isValid;//初始化失败，则isvalid会变成fasle;
 	std::unordered_map<int, std::shared_ptr<Task>> epollTask;
 	std::vector<std::shared_ptr<Task>> TaskArr;
-	std::shared_ptr<ThreadPool> threadPool;//线程池
 	std::shared_ptr<TimerManager> timerManager;//时间管理器
 };
 

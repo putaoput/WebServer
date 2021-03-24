@@ -10,9 +10,13 @@ using namespace std;
 //-------------------------ThreadPoolTask------------------------
 
 ThreadPoolTask::ThreadPoolTask(shared_ptr<Task> _task)
-	:args(_task)
+	:args(_task) 
 {
 	fun = [](shared_ptr<Task> _task)->void {
+#ifdef TEST
+		cout << "_task.use_count() = " << _task.use_count() << endl;
+#endif // TEST
+
 		_task->receive();
 	};
 }
@@ -20,8 +24,13 @@ ThreadPoolTask::ThreadPoolTask(shared_ptr<Task> _task)
 ThreadPoolTask::ThreadPoolTask()
 {
 	fun = [](shared_ptr<Task> _task)->void {
-		_task->receive();
+	#ifdef TEST
+		cout << "TEST FUNC SUCCESS\n"<<endl;
+		
+	#endif
+	_task->receive();
 	};
+	args = nullptr;
 }
 
 ////自定义拷贝函数，交换智能指针
@@ -35,6 +44,9 @@ void ThreadPoolTask::reset() {
 
 void ThreadPoolTask::swap(ThreadPoolTask& _newTask) {
 	args.swap(_newTask.args);
+	#ifdef TEST
+		cout << "swap" << args.use_count() << endl;
+	#endif
 }
 
 
@@ -48,7 +60,7 @@ void ThreadPoolTask::swap(ThreadPoolTask& _newTask) {
 pthread_mutex_t ThreadPool::lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t ThreadPool::notify = PTHREAD_COND_INITIALIZER;
 std::vector<pthread_t> ThreadPool::threads;
-std::vector<ThreadPoolTask> ThreadPool::taskQueue;
+std::vector<shared_ptr<ThreadPoolTask>> ThreadPool::taskQueue;
 int ThreadPool::threadCount = 0;
 int ThreadPool::queueSize = MAX_QUEUE;
 int ThreadPool::head = 0;
@@ -58,13 +70,16 @@ bool ThreadPool::isValid = 0;
 int ThreadPool::tail = 0;
 int ThreadPool::count = 0;
 
-ThreadPool::ThreadPool(int _threadCount, int _queueSize)//int _threadCount, int _queueSize) 
+int ThreadPool::create (int _threadCount, int _queueSize)//int _threadCount, int _queueSize) 
 	
 {
-	
+	#ifdef TEST
+		cout << "ThreadPoll constuct!!" << endl;
+		cout << _queueSize << endl;
+	#endif 
 	if (_threadCount <= 0 || _threadCount > MAX_THREADS) {
 		printf("num of threads error!!!\n");
-		return;
+		return -1;
 	}
 	else {
 		threads.resize(_threadCount);
@@ -73,10 +88,16 @@ ThreadPool::ThreadPool(int _threadCount, int _queueSize)//int _threadCount, int 
 	
 	if (_queueSize <= 0 || _queueSize > MAX_QUEUE) {
 		printf("num of threads error!!!\n");
-		return;
+		return -1;
 	}
 	else {
-		taskQueue.resize(_queueSize);
+		for(int i = 0; i < _queueSize; ++i){
+			#ifdef TEST
+				cout << "taskQueue constuct!!" << endl;
+			#endif 
+			taskQueue.push_back(shared_ptr<ThreadPoolTask> (new ThreadPoolTask));
+			cout << "1" << endl;
+		} 
 	}
 	 
 	/* 启动线程池里的线程 */
@@ -92,16 +113,17 @@ ThreadPool::ThreadPool(int _threadCount, int _queueSize)//int _threadCount, int 
 	for (int i = 0; i < _threadCount; ++i) {
 		if (pthread_create(&threads[i], NULL, running, (void*)(0)) != 0)
 		{
-			return;
+			return -1; 
 		}
 		++started;
 		++threadCount;
 	}
 
 	isValid = true;
+	return 0;
 }
 
-int ThreadPool::add(ThreadPoolTask _newTask) {
+int ThreadPool::add(shared_ptr<ThreadPoolTask> _newTask) {
 	#ifdef TEST
 		cout << "add new Task" << endl;
 	#endif
@@ -125,7 +147,7 @@ int ThreadPool::add(ThreadPoolTask _newTask) {
 	#endif
 
 	int next = (tail + 1) % queueSize;
-	taskQueue[next].swap(_newTask);//使用交换的方法加入任务队列
+	taskQueue[tail] = _newTask;//使用交换的方法加入任务队列
 	++count;
 	tail = next;
 	
@@ -140,8 +162,10 @@ int ThreadPool::add(ThreadPoolTask _newTask) {
 		perror("pthread_mutex_unlock failed after add new task!!!\n");
 		return -1;
 	}
-
+	
+	
 	#ifdef TEST
+		_newTask->args->get_fd();
 		cout << "end add new Task" << endl;
 	#endif
 
@@ -167,17 +191,19 @@ void* ThreadPool::running(void* args) {
 			break;
 		}
 
-		ThreadPoolTask task = taskQueue[head];
-		taskQueue[head].reset();
+		shared_ptr<ThreadPoolTask> task = taskQueue[head];
+		//taskQueue[head].reset();
 		head = (head + 1) % queueSize;
 		--count;
 		pthread_mutex_unlock(&lock);
 
 		#ifdef TEST
+		cout << "" << task->args->get_fd() << endl;
 		cout << "before (task.fun)(task.args)" << endl;
+		
 		#endif
 
-		(task.fun)(task.args);
+		(task->fun)(task->args);
 
 		#ifdef TEST
 		cout << "after (task.fun)(task.args)" << endl;

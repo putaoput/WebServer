@@ -32,7 +32,8 @@ public:
 	__uint32_t get_events();
 	int receive();
 private:
-	ssize_t readn(char* _buff);
+	ssize_t readn(void* _buff,size_t _n);
+	ssize_t readn(int fd, void* buff, size_t n);
 	ssize_t writen(char* _buff,size_t _n);
 	void state_machine();
 	void parse_uri();

@@ -7,13 +7,18 @@
 #include <cstdint>
 #include <cstring>
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <iostream>
+#include <errno.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 
 #include"config.h"
 #include"Task.h"
 #include "Mime.h"
-#include <fcntl.h>
 #include "MyEpoll.h"
-#include <iostream>
+
 
 using namespace std;
 
@@ -31,7 +36,9 @@ Task::Task(int _fd, shared_ptr<MyEpoll> _myEpoll, size_t _timeOut, string _path,
 	readPos(0),
 	events(_events)
 {
-
+	#ifdef TEST
+		cout << "Task Construct!!!" << fd << endl;
+	#endif
 }
 
 
@@ -78,11 +85,12 @@ __uint32_t Task::get_events() {
 
 int Task::receive() {
 	#ifdef TEST
-		cout << "receive!!" << endl;
+		cout << "receive!!" << this->get_fd() << endl;
 	#endif
 	char buff[BUFF_SIZE];
 	while (true) {
-		int readNum = readn(buff);
+		//int readNum = readn(buff,BUFF_SIZE);
+		int readNum = readn(fd, buff, BUFF_SIZE);
 		#ifdef TEST
 		cout << "readNum = " << readNum << endl;
 		#endif
@@ -105,6 +113,10 @@ int Task::receive() {
 			}
 		}
 		message += string(buff, buff + readNum);
+		#ifdef TEST
+		cout << "message = " << message << endl;
+		#endif
+
 		state_machine();
 
 		#ifdef TEST
@@ -113,8 +125,8 @@ int Task::receive() {
 
 		//跳出循环的条件
 		if (isError == STATE_ERROR//此时将直接返回，释放
-			|| isError == STATE_AGAIN//此时不会改变状态，然后重新加入
-			|| isError == STATE_SUCCESS)//此时重置状态，长连接重新加入，短连接同错误，直接释放
+			|| state == STATE_AGAIN//此时不会改变状态，然后重新加入
+			|| state == STATE_SUCCESS)//此时重置状态，长连接重新加入，短连接同错误，直接释放
 		{
 			break;
 		}
@@ -151,21 +163,18 @@ int Task::receive() {
 
 }
 
-ssize_t Task::readn(char* _buff) {
-	size_t needToRead = BUFF_SIZE;
+ssize_t Task::readn(void* _buff,size_t _n) {
+	size_t needToRead = _n;
 	ssize_t readOnce = 0;
 	ssize_t readSum = 0;
-	char* ptr = (char*) _buff
-	#ifdef TEST
-		cout << "readn" << endl;
-	#endif
+	char* ptr = (char*) _buff;
+	
 	while (needToRead > 0) {
+	#ifdef TEST
+		cout << "readn fd = " << fd << endl;
+	#endif
 		if ((readOnce == read(fd, ptr, needToRead)) < 0)
 		{
-
-			#ifdef TEST
-				cout << "readOnce = " << readOnce << endl;
-			#endif
 
 			if(errno == EINTR || errno == EAGAIN)
 			{
@@ -176,6 +185,9 @@ ssize_t Task::readn(char* _buff) {
 				return -1;
 			}
 		}
+			#ifdef TEST
+				cout << "readOnce = " << readOnce << endl;
+			#endif
 		readSum += readOnce;
 		needToRead -= readOnce;
 		ptr += readOnce;
@@ -189,7 +201,8 @@ ssize_t Task::writen(char* _buff, size_t _n) {
 	ssize_t writeSum = 0;
 	char* ptr = _buff;
 	while (needToWrite > 0) {
-		if ((writeOnce == write(fd, ptr, needToWrite)) < 0)
+		//if ((writeOnce == write(fd, ptr, needToWrite)) < 0)
+		if ((writeOnce == send(fd, ptr, needToWrite,0)) < 0)
 		{
 			if (errno == EINTR || errno == EAGAIN)
 			{
@@ -208,19 +221,33 @@ ssize_t Task::writen(char* _buff, size_t _n) {
 }
 
 void Task::state_machine() {
-	switch (state) {
-	case PARSE_URI:
-		 parse_uri();
-		 break;
-	case PARSE_HEADERS:
+	
+	if (state == PARSE_URI) {
+		parse_uri();
+#ifdef TEST
+		cout << "PARSE_URI" << endl;
+#endif
+	}
+
+	if (state == PARSE_HEADERS) {
 		parse_headers();
-		break;
-	case RECV_BODY:
+#ifdef TEST
+		cout << "PARSE_HREADERS " << endl;
+#endif
+	}
+
+	if (state == RECV_BODY) {
 		recv_body();
-		break;
-	case ANALYSIS:
+#ifdef TEST
+		cout << "RECV_BODY" << endl;
+#endif
+	}
+
+	if (state == ANALYSIS) {
 		analysis();
-		break;
+#ifdef TEST
+		cout << "ANALYSIS" << endl;
+#endif
 	}
 
 }
@@ -592,4 +619,35 @@ void Task::handle_error(int _errNum, string _shortMsg)
 	writen(send_buff, strlen(send_buff));
 	sprintf(send_buff, "%s", body_buff.c_str());
 	writen(send_buff, strlen(send_buff));
+}
+
+ssize_t Task::readn(int fd, void* buff, size_t n)
+{
+	size_t nleft = n;
+	ssize_t nread = 0;
+	ssize_t readSum = 0;
+	char* ptr = (char*)buff;
+	while (nleft > 0)
+	{
+		//if ((nread = read(fd, ptr, nleft)) < 0)
+		if((nread = recv(fd, ptr, n, 0)) < 0)
+		{
+			if (errno == EINTR)
+				nread = 0;
+			else if (errno == EAGAIN)
+			{
+				return readSum;
+			}
+			else
+			{
+				return -1;
+			}
+		}
+		else if (nread == 0)
+			break;
+		readSum += nread;
+		nleft -= nread;
+		ptr += nread;
+	}
+	return readSum;
 }

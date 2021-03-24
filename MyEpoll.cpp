@@ -17,9 +17,8 @@
 #include "Task.h"
 using namespace std;
 
-MyEpoll::MyEpoll(int _port, std::shared_ptr<ThreadPool> _threadPool, std::shared_ptr<TimerManager> _timerManager):
+MyEpoll::MyEpoll(int _port, std::shared_ptr<TimerManager> _timerManager):
 	isValid(false),
-	threadPool(_threadPool),
 	timerManager(_timerManager)
 {
 	eventsArr = new epoll_event[MAX_EVENATS];
@@ -127,18 +126,13 @@ int MyEpoll::wait(int maxEvents, int timeOut, string _path) {
 			auto task = epollTask[fd];
 			
 			//printf("cur_req.=%d\n", cur_req.use_count());
-			if (threadPool) {
-				threadPool->add(ThreadPoolTask(task));//加入线程池之后，要封装一次Task;
-			}
-			else {
-				perror("threadPool is nullptr!!!\n");
-				return -1;
-			}
+			
+			ThreadPool::add(shared_ptr<ThreadPoolTask>(new ThreadPoolTask(task)));//加入线程池之后，要封装一次Task;
+			
+			
 		}
 	}
-	#ifdef TEST
-		cout << "end wait" << endl;
-	#endif
+	
 	return -1;
 }
 
@@ -193,8 +187,8 @@ int MyEpoll::start(int _port) {
 	//将该listen_fd注册到epoll_fd上
 	__uint32_t events = EPOLLIN | EPOLLET;
 	shared_ptr<Task> task( new Task(listen_fd, shared_ptr<MyEpoll>(this), TIME_OUT, PATH, timerManager, events));
-
-//注意这个task是在栈上构造，没有使用boost::shared_ptr<D>所以boost::shared_ptr<D>中的weak——ptr所指对象也就没有被赋值，会导致bad_weak_ptr,
+	
+//注意这个task如果是在栈上构造，没有使用boost::shared_ptr<D>所以boost::shared_ptr<D>中的weak——ptr所指对象也就没有被赋值，会导致bad_weak_ptr,
 //还有一种就是在构造函数中使用shared_from_this
 
 	if ((add(task)) == -1) {
@@ -240,6 +234,9 @@ int MyEpoll::accept_connection(int _fd, size_t _timeOut, string _path) {
 			#endif
 		shared_ptr<Task> task(new Task(acceptFd, shared_ptr<MyEpoll>(this), _timeOut, _path, timerManager, event));
 		add(task);
+		#ifdef TEST
+		cout << "sp_task -> get_fd()" << task->get_fd() << endl;
+		#endif
 		task->push_to();
 	}
 

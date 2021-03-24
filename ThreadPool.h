@@ -25,8 +25,8 @@ public:
 class ThreadPool
 {
 public:
-	ThreadPool(int _threadConut, int _queueSize);
-	static int add(ThreadPoolTask);
+	static int create(int _threadConut, int _queueSize);
+	static int add(std::shared_ptr<ThreadPoolTask> _newTask);
 	//static void shutdown_pool(int _shutdown);
 	static bool is_valid();
 	static void* running(void* args);
@@ -35,7 +35,7 @@ private:
 	static pthread_mutex_t lock;
 	static pthread_cond_t notify;
 	static std::vector<pthread_t> threads;
-	static std::vector<ThreadPoolTask> taskQueue;
+	static std::vector<std::shared_ptr<ThreadPoolTask>> taskQueue;
 	static int threadCount;
 	static int queueSize;
 	static int head;

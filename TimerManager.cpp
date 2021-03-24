@@ -108,6 +108,9 @@ void TimerManager::pop() {
 	while (timerManager.empty() == false && timerManager.top()->is_valid() == false)
 		{
 			timerManager.pop();
+			#ifdef TEST
+				cout << "pop a task" << endl;
+			#endif
 		}
 
 	//唤醒等待该互斥量的线程
