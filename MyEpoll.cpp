@@ -15,6 +15,8 @@
 #include "MyEpoll.h"
 #include "config.h"
 #include "Task.h"
+#include "TimerManager.h"
+#include "SingerTimer.h"
 using namespace std;
 
 MyEpoll::MyEpoll(int _port, std::shared_ptr<TimerManager> _timerManager):
@@ -77,12 +79,13 @@ int MyEpoll::del(shared_ptr<Task> _task) {
 		perror("epoll_del failed!!!\n");
 		return -1;
 	}
-	epollTask[_task->get_fd()] = _task;
+	epollTask.erase(_task->get_fd());
 	return 0;
 }
 
 int MyEpoll::wait(int maxEvents, int timeOut, string _path) {
 	int eventCount = epoll_wait(epoll_fd, eventsArr, maxEvents, timeOut);
+	//timeOut指定epoll的超时值，如果为-1将永远阻塞
 	//events 里存储了监听到的所有事件，
 	if (eventCount < 0) {
 		perror("epoll wait error");
@@ -124,12 +127,13 @@ int MyEpoll::wait(int maxEvents, int timeOut, string _path) {
 			// 将请求任务加入到线程池中
 			// 加入线程池之前将Timer和request分离
 			auto task = epollTask[fd];
-			
+			task->separate();
+
+#ifdef PTHREAD
+	cout << "task->sepatate()" << endl;
+#endif
 			//printf("cur_req.=%d\n", cur_req.use_count());
-			
-			ThreadPool::add(shared_ptr<ThreadPoolTask>(new ThreadPoolTask(task)));//加入线程池之后，要封装一次Task;
-			
-			
+			ThreadPool::add(shared_ptr<ThreadPoolTask>(new ThreadPoolTask(task)));//加入线程池之后，要封装一次Task;	
 		}
 	}
 	
@@ -234,10 +238,11 @@ int MyEpoll::accept_connection(int _fd, size_t _timeOut, string _path) {
 			#endif
 		shared_ptr<Task> task(new Task(acceptFd, shared_ptr<MyEpoll>(this), _timeOut, _path, timerManager, event));
 		add(task);
-		#ifdef TEST
-		cout << "sp_task -> get_fd()" << task->get_fd() << endl;
-		#endif
-		task->push_to();
+		//新建一个计时器，负责绑定该task;
+		shared_ptr<SingleTimer> singleTimer(new SingleTimer(TIME_OUT));
+		task->set_singleManager(singleTimer);
+		timerManager->add(singleTimer);
+		
 	}
 
 	return 0;

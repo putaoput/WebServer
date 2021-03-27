@@ -96,7 +96,7 @@ int ThreadPool::create (int _threadCount, int _queueSize)//int _threadCount, int
 				cout << "taskQueue constuct!!" << endl;
 			#endif 
 			taskQueue.push_back(shared_ptr<ThreadPoolTask> (new ThreadPoolTask));
-			cout << "1" << endl;
+			
 		} 
 	}
 	 
@@ -126,6 +126,10 @@ int ThreadPool::create (int _threadCount, int _queueSize)//int _threadCount, int
 int ThreadPool::add(shared_ptr<ThreadPoolTask> _newTask) {
 	#ifdef TEST
 		cout << "add new Task" << endl;
+		//测试有没有和定时器分离成功
+		if(_newTask->args->get_singleManager()->separate_success() == false){
+			cout << "separate failed!!" << endl;
+		}
 	#endif
 
 	if (pthread_mutex_lock(&lock) != 0) {
@@ -145,12 +149,14 @@ int ThreadPool::add(shared_ptr<ThreadPoolTask> _newTask) {
 	#ifdef TEST
 		cout << "have locked while adding new Task" << endl;
 	#endif
-
+	
 	int next = (tail + 1) % queueSize;
 	taskQueue[tail] = _newTask;//使用交换的方法加入任务队列
 	++count;
 	tail = next;
-	
+#ifdef PTHREAD
+	cout << "next = " << next << "  count = " << count << endl;
+#endif
 	//唤醒等待该互斥量的线程
 	if (pthread_cond_signal(&notify) != 0)
 	{
@@ -190,7 +196,9 @@ void* ThreadPool::running(void* args) {
 			(shutdwon == WAIT_SHUTDOWN && !count)) {
 			break;
 		}
-
+#ifdef PTHREAD
+	cout << "head = " << head << endl;
+#endif
 		shared_ptr<ThreadPoolTask> task = taskQueue[head];
 		//taskQueue[head].reset();
 		head = (head + 1) % queueSize;

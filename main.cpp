@@ -65,8 +65,8 @@ int main(int argc, char* argv[]) {
 
 	//启动
 	while(true){
-		myEpoll->wait(MAX_EVENATS,TIME_OUT,PATH);
-		timerManager->pop();//处理超时事件,这里可以理解成把优先队列封装完之后,重写了pop
+		myEpoll->wait(MAX_EVENATS,-1,PATH);
+		//timerManager->pop();//处理超时事件,这里可以理解成把优先队列封装完之后,重写了pop
 	}
 		
 	return 0;

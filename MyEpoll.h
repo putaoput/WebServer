@@ -6,6 +6,7 @@
 #include <sys/epoll.h>
 #include <vector>
 #include <unordered_map>
+#include <memory>
 
 #include "ThreadPool.h"
 class TimeManager;

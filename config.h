@@ -3,8 +3,8 @@
 
 #pragma once
 
-#define TEST
-
+//#define TEST
+#define PTHREAD
 
 //----------------- MyEpoll---------------
 #include <string>

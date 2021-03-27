@@ -13,14 +13,20 @@ using namespace std;
 //---------------SingleTimer的实现------------------
 
 
-SingleTimer::SingleTimer(shared_ptr<TimerManager> _timerManager, size_t _timeOut):
-	isDelete(false),//isValid(true)
-	timerManager(_timerManager)
+SingleTimer::SingleTimer( size_t _timeOut):
+	isDelete(false)//isValid(true)
 {
 	expiredTime = calcu_time(_timeOut);
 }
 
-SingleTimer::~SingleTimer(){}
+SingleTimer::~SingleTimer(){
+	//如果task智能指针不为空，则当task不在任务队列里时，SingleTimer里面是最后两个指向task的智能指针之一
+	//还有一个在MyEpoll里面，所以SingleTimer析构掉之后，task随之析构，然后task析构时，要从MyEpoll中卸载对应fd。
+	//总而之fd和Task是绑定的
+	if(task){
+	task->~Task();
+	}
+}
 
 void SingleTimer:: reset(size_t _timeOut) {
 	expiredTime = calcu_time(_timeOut);
@@ -32,23 +38,6 @@ bool SingleTimer::is_valid() {
 	return expiredTime >= calcu_time();
 }
 
-void SingleTimer::push_to() {
-	//先检查智能指针是否为空
-	if (timerManager == nullptr) {
-		perror("the timerManager point to nullptr!!!\n");
-	}
-	shared_ptr<SingleTimer> spTimer = shared_from_this();
-	#ifdef TEST
-		cout << " push to!!!" << endl;
-		cout << spTimer.use_count() << endl;
-		cout << timerManager.use_count() << endl;
-		
-	#endif
-	timerManager->add(spTimer);
-	#ifdef TEST
-		cout << "end push_to" << endl;
-	#endif
-}
 
 size_t SingleTimer::get_expiredTime() {
 	return expiredTime;
