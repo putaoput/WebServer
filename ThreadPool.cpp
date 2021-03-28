@@ -131,7 +131,7 @@ int ThreadPool::add(shared_ptr<ThreadPoolTask> _newTask) {
 			cout << "separate failed!!" << endl;
 		}
 	#endif
-
+	
 	if (pthread_mutex_lock(&lock) != 0) {
 		perror("lock failed while add new task!!!\n");
 		return -1;
@@ -185,12 +185,19 @@ int ThreadPool::add(shared_ptr<ThreadPoolTask> _newTask) {
 void* ThreadPool::running(void* args) {
 
 	while (true) {
+#ifdef PTHREAD
+		cout << "start()" << endl;
+		cout << "count() = " << count << endl;
+#endif
 		pthread_mutex_lock(&lock);
 		while ((count == 0) && (!shutdwon)) {
 			pthread_cond_wait(&notify, &lock);
 			//不满足给定条件时，让线程挂起
 		}
-
+#ifdef PTHREAD
+		cout << "end wait!!" << endl;
+		
+#endif
 		//检测到关闭信号则关闭
 		if ((shutdwon == IMMEDIATE_SHUTDOWN) ||
 			(shutdwon == WAIT_SHUTDOWN && !count)) {
@@ -200,9 +207,11 @@ void* ThreadPool::running(void* args) {
 	cout << "head = " << head << endl;
 #endif
 		shared_ptr<ThreadPoolTask> task = taskQueue[head];
-		//taskQueue[head].reset();
+		taskQueue[head].reset();
 		head = (head + 1) % queueSize;
+		//!!重大失误，没有队列里的task,没有--count;
 		--count;
+
 		pthread_mutex_unlock(&lock);
 
 		#ifdef TEST
@@ -212,10 +221,13 @@ void* ThreadPool::running(void* args) {
 		#endif
 
 		(task->fun)(task->args);
-
-		#ifdef TEST
+#ifdef PTHREAD
 		cout << "after (task.fun)(task.args)" << endl;
-		#endif
+#endif
+		
+#ifdef PTHREAD
+		cout << "after task.reset()" << endl;
+#endif
 	}
 
 	//如果退出线程

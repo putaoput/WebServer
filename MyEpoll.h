@@ -19,6 +19,10 @@ public:
 	int mod(std::shared_ptr<Task> _task);
 	int del(std::shared_ptr<Task> _task);
 	int wait(int _maxEvents, int timeOut, std::string _path);
+
+	void add_to_epollTask(std::shared_ptr<Task> _task){
+		epollTask[_task->get_fd()] = _task;
+	}
 private:
 	int start(int _port);
 	int set_sock_non_block(int _listen_fd);

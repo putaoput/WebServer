@@ -60,7 +60,7 @@ int MyEpoll::add(shared_ptr<Task> _task) {
 int MyEpoll::mod(shared_ptr<Task> _task) {
 	struct epoll_event event;
 	event.data.fd = _task->get_fd();
-	event.events = _task->get_events();
+	event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
 	if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, _task->get_fd(), &event) < 0)
 	{
 		perror("epoll_mod failed!!!\n");
@@ -79,7 +79,9 @@ int MyEpoll::del(shared_ptr<Task> _task) {
 		perror("epoll_del failed!!!\n");
 		return -1;
 	}
-	epollTask.erase(_task->get_fd());
+	if(epollTask.find(_task->get_fd()) != epollTask.end()){
+		epollTask.erase(_task->get_fd());
+	}
 	return 0;
 }
 
@@ -91,12 +93,15 @@ int MyEpoll::wait(int maxEvents, int timeOut, string _path) {
 		perror("epoll wait error");
 		return -1;
 	}
+#ifdef PTHREAD
+	cout << "eventCount = " << eventCount << endl;
+#endif
 	//将这些事件分类处理，包装好送给线程池
 	for (int i = 0; i < eventCount; ++i)
 	{
-		#ifdef TEST
-			cout << "eventCount = " << eventCount << endl;
-		#endif
+#ifdef TEST
+	cout << "eventCount = " << eventCount << endl;
+#endif
 		// 获取有事件产生的描述符
 		int fd = eventsArr[i].data.fd;
 
@@ -127,6 +132,8 @@ int MyEpoll::wait(int maxEvents, int timeOut, string _path) {
 			// 将请求任务加入到线程池中
 			// 加入线程池之前将Timer和request分离
 			auto task = epollTask[fd];
+			//并且从任务池里面删除该task，保证可以即使析构无效的连接,如果时长连接，需要重新加入
+			//epollTask.erase(fd);
 			task->separate();
 
 #ifdef PTHREAD
@@ -134,6 +141,7 @@ int MyEpoll::wait(int maxEvents, int timeOut, string _path) {
 #endif
 			//printf("cur_req.=%d\n", cur_req.use_count());
 			ThreadPool::add(shared_ptr<ThreadPoolTask>(new ThreadPoolTask(task)));//加入线程池之后，要封装一次Task;	
+			//del(task);
 		}
 	}
 	

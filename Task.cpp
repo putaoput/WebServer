@@ -87,10 +87,12 @@ void Task::reset()
 	message.clear();
 	fileName.clear();
 	path.clear();
-	state = H_START;
+	h_state = H_START;
+	state = PARSE_URI;
 	readPos = 0;
 	keep_alive = false;
 	//SingleTimer::reset();
+	//myEpoll->mod(shared_from_this());
 }
 
 int Task::get_fd()
@@ -113,7 +115,7 @@ int Task::receive()
 	{
 		//int readNum = readn(buff,BUFF_SIZE);
 		int readNum = readn(fd, buff, BUFF_SIZE);
-#ifdef TEST
+#ifdef PTHREAD
 		cout << "readNum = " << readNum << endl;
 #endif
 		if (readNum < 0)
@@ -133,6 +135,9 @@ int Task::receive()
 				else
 				{
 					++againTimes;
+#ifdef PTHREAD
+	cout << "againTimes = " << againTimes << endl;
+#endif
 				}
 			}
 			else if (errno != 0)
@@ -147,7 +152,7 @@ int Task::receive()
 
 		state_machine();
 
-#ifdef TEST
+#ifdef PTHREAD
 		cout << "After state_machine!!" << endl;
 #endif
 
@@ -157,7 +162,11 @@ int Task::receive()
 			|| state == FINISH
 			|| isError == STATE_SUCCESS) //此时重置状态，长连接重新加入，短连接同错误，直接释放
 		{
+#ifdef PTHREAD
+	cout << "break" << endl;
+#endif
 			break;
+
 		}
 	}
 
@@ -169,6 +178,9 @@ int Task::receive()
 	{
 		if (keep_alive)
 		{
+#ifdef KA
+	cout << "reset() for long connect!!!" << endl;
+#endif
 			reset();
 		}
 		else
@@ -180,6 +192,9 @@ int Task::receive()
 	//接下来就是把该请求放入该对象所属时间管理器了
 	//要新建一个时间管理器管理该请求
 	//要重置该事件
+#ifdef PTHREAD
+	cout << "reset()" << endl;
+#endif
 	shared_ptr<SingleTimer> sp_tiemr(new SingleTimer(TIME_OUT));
 	set_singleManager(sp_tiemr);
 	timerManager->add(sp_tiemr);
@@ -198,6 +213,13 @@ int Task::receive()
 #endif // TEST
 
 	myEpoll->mod(dynamic_pointer_cast<Task>(shared_from_this()));
+	//加入任务队列
+	myEpoll->add_to_epollTask(shared_from_this());
+
+#ifdef PTHREAD
+	cout << "end receive" << endl;
+#endif
+
 }
 
 ssize_t Task::readn(void *_buff, size_t _n)
