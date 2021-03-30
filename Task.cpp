@@ -25,7 +25,8 @@
 using namespace std;
 
 //-----------------------------Task------------------------
-//初始化Task的时候，要提供等待处理的文件描述符
+//初始化Task的时候，要提供等待处理的文件描述符，在程序启动，0是标准输入，1是标准输出，2是标准错误，所以新打开一个文件，
+//他的文件描述符会是3，因为POSIX标准要求每次新打开一个文件时，必须使用目前最小可用的文件描述符号码)
 
 Task::Task(int _fd, shared_ptr<MyEpoll> _myEpoll, size_t _timeOut, string _path, shared_ptr<TimerManager> _timerManager, __uint32_t _events)
 	: timerManager(_timerManager),

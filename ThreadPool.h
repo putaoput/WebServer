@@ -7,8 +7,12 @@
 #include <memory>
 #include <pthread.h>
 
+#include"MutexLock.h"
 
 #include "Task.h"
+#include "Condition.h"
+//#include "base/Thread.h"
+//#include "EventLoop.h"
 
 class ThreadPoolTask {
 public:
@@ -22,7 +26,22 @@ public:
 	//fun用来存储一个可调用对象void返回值，（参数）。
 };
 
-class ThreadPool
+//class MyThread :noncopyable
+//{
+//public:
+//	MyThread();
+//	~MyThread();
+//	SP_EventLoop start_loop();
+//
+//private:
+//	void thread_running();
+//	SP_EventLoop SPloop;
+//	Thread thread;
+//	MutexLock Tlock;
+//	Condition Tnotify;
+//};
+
+class ThreadPool:noncopyable
 {
 public:
 	static int create(int _threadConut, int _queueSize);
@@ -32,8 +51,8 @@ public:
 	static void* running(void* args);
 
 private:
-	static pthread_mutex_t lock;
-	static pthread_cond_t notify;
+	static MutexLock TPlock;
+	static Condition TPnotify;
 	static std::vector<pthread_t> threads;
 	static std::vector<std::shared_ptr<ThreadPoolTask>> taskQueue;
 	static int threadCount;

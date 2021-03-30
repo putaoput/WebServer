@@ -9,6 +9,8 @@
 #include "config.h"
 #include "Task.h"
 #include "SingerTimer.h"
+#include "MutexLock.h"
+#include "Condition.h"
 
 //本质是一个优先队列，大顶堆
 class PSingleTimerCmp {
@@ -16,7 +18,7 @@ public:
 	bool operator()(const std::shared_ptr<SingleTimer> spA, const std::shared_ptr<SingleTimer> spB) const;
 };
 
-class TimerManager
+class TimerManager:noncopyable
 {
 public:
 	TimerManager();
@@ -26,8 +28,8 @@ public:
 
 
 private:
-	pthread_mutex_t lock;
-	pthread_cond_t  notify;
+	MutexLock TMlock;
+	Condition  TMnotify;
 	bool isValid;
 	std::priority_queue < std::shared_ptr<SingleTimer>, std::vector<std::shared_ptr<SingleTimer>>, PSingleTimerCmp> timerManager;
 };

@@ -53,16 +53,18 @@ size_t SingleTimer::calcu_time(size_t _timeOut) {
 
 //---------------TimerManeger的实现------------------
 TimerManager::TimerManager() 
-	:isValid(false)
+	:isValid(false),
+	TMlock(),
+	TMnotify(TMlock)
 {
-	if (pthread_mutex_init(&lock,NULL) == -1) {
+	/*if (pthread_mutex_init(&lock,NULL) == -1) {
 		perror("lock of TimerManager init failed!!!\n");
 		return;
 	}
 	if (pthread_cond_init(&notify, NULL) == -1) {
 		perror("notify of TimerManager init failed!!!\n");
 		return;
-	}
+	}*/
 	isValid = true;
 }
 
@@ -72,28 +74,31 @@ void TimerManager::add(shared_ptr<SingleTimer> _singleTimer) {
 		cout << "SingleTimer add!!" << endl;
 	#endif
 
-	if(pthread_mutex_lock(&lock) != 0)
+	/*if(pthread_mutex_lock(&lock) != 0)
 	{
 		perror("lock failed while add singleaTimer!!");
-	}
+	}*/
+		MutexLockGuard lock(TMlock);
 	timerManager.push(_singleTimer);
-	if (pthread_cond_signal(&notify) != 0)
+	TMnotify.notify();
+	/*if (pthread_cond_signal(&notify) != 0)
 	{
 		perror("pthread_cond_signal failed after timerManager pop!!!\n");
 		return ;
-	}
+	}*/
 
-	if (pthread_mutex_unlock(&lock) != 0) {
+	/*if (pthread_mutex_unlock(&lock) != 0) {
 		perror("pthread_mutex_unlock failed after after timerManager pop!!!\n");
 		return ;
-	}
+	}*/
 }
 
 void TimerManager::pop() {
-	if (pthread_mutex_lock(&lock) != 0) {
+	/*if (pthread_mutex_lock(&lock) != 0) {
 		perror("lock failed while pop timer!!!\n");
 		return ;
-	}
+	}*/
+	MutexLockGuard lock(TMlock);
 	while (timerManager.empty() == false && timerManager.top()->is_valid() == false)
 		{
 			timerManager.pop();
@@ -103,17 +108,17 @@ void TimerManager::pop() {
 		}
 
 	//唤醒等待该互斥量的线程
-	if (pthread_cond_signal(&notify) != 0)
+	/*if (pthread_cond_signal(&notify) != 0)
 	{
 		perror("pthread_cond_signal failed after timerManager pop!!!\n");
 		return ;
-	}
-
-	if (pthread_mutex_unlock(&lock) != 0) {
-		perror("pthread_mutex_unlock failed after after timerManager pop!!!\n");
-		return ;
-	}
-	//这里有一个巧妙设计在于继承了之后，可以很好避免两次判断。
+	}*/
+	TMnotify.notify();
+	//if (pthread_mutex_unlock(&lock) != 0) {
+	//	perror("pthread_mutex_unlock failed after after timerManager pop!!!\n");
+	//	return ;
+	//}
+	
 }
 
 bool TimerManager::is_valid() {
