@@ -28,6 +28,16 @@ int main(int argc, char* argv[]) {
 		return -1;
 	}
 
+	Log::instance()->init(0, "./Log", "Log", 1024);
+
+#ifdef  _LOG_
+		LOG_INFO("Test LOG_INFO");
+		LOG_ERROR("Test LOG_ERROR");
+		LOG_DEBUG("Test LOG_DEBUG");
+		LOG_WARN("Test LOG_WARN");
+#endif //  _LOG_
+	//	while(true){}
+			
 	//可以输出的参数有 -p port, 
 	if (argc == 1) {
 		cout << "the first arg is port_num, the second is pthread num,please divided by black:" << endl;
@@ -37,9 +47,7 @@ int main(int argc, char* argv[]) {
 		cout << "Please enter the port num and phread num" << endl;
 		return -1;
 	}
-	//定义日志存储路径
-	const string logFilePath = "./logFile.log";
-	//新建一个内存池对象，作为工作线程，处理所有在请求队列上的任务
+
 
 	do {
 		ThreadPool::create(atoi(argv[2]), QUEUE_NUM);
@@ -62,14 +70,17 @@ int main(int argc, char* argv[]) {
 			cout << "myEpoll init failed!!!" << endl;
 			return -1;
 		}
+	
+		//Log::Instance()->init(logLevel, "./log", ".log", logQueSize);
+		LOG_INFO("The WebServer init");
+		LOG_INFO("Port:%d", atoi(argv[1]),"           Thread num:%d",atoi(argv[2]));
 
-		LOG_INFO("Sever init");
-		LOG_INFO("Port:%d", argv[1],"           Thread num:%d",argv[2]);
+
 
 	//启动
 		while (true) {
 			myEpoll->wait(MAX_EVENATS, -1, PATH);
-			//timerManager->pop();//处理超时事件,这里可以理解成把优先队列封装完之后,重写了pop
+			timerManager->pop();//处理超时事件,这里可以理解成把优先队列封装完之后,重写了pop
 		}
 	} while (false);
 

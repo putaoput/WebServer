@@ -24,12 +24,19 @@ public:
 		task = _task;
 	}
 
+	std::shared_ptr<Task> get_task(){
+		return task;
+	}
+	
+
 	void separate_task() {
 		task.reset();
 	}
-	size_t get_expiredTime();
-	//把自己放入一个计时器内
-	
+	bool is_delete();
+
+	size_t get_expiredTime(){
+		return expiredTime;
+	}
 
 protected:
 	size_t expiredTime;
@@ -37,8 +44,7 @@ protected:
 	* 32位机器:typedef   unsigned int size_t;
 	* 64位机器: typedef  unsigned long size_t;
 	*/
-	bool isDelete;
-	//bool isValid;
+
 	//std::shared_ptr<TimerManager> timerManager;//指定该计时对象所属的时间管理器
 	inline size_t calcu_time(size_t timeOut = 0);//更新超时时间
 	std::shared_ptr<Task> task;

@@ -20,7 +20,7 @@
 #include "MyEpoll.h"
 #include "SingerTimer.h"
 #include "TimerManager.h"
-//#include "util.h"
+#include "Log.h"
 
 using namespace std;
 
@@ -55,34 +55,26 @@ void Task::separate()
 	{
 		shared_ptr<SingleTimer> sp_timer(timer.lock());
 		sp_timer->separate_task();
+		sp_timer = nullptr;
 	}
 }
 
-//重载构造函数,
-//Task::Task( size_t _timeOut, shared_ptr<TimerManager> _timerManager):
-//	SingleTimer( _timerManager, _timeOut),
-//	state(PARSE_URI),
-//	h_state(H_START),
-//	keep_alive(false),
-//	readPos(0),
-//	isError(0)
-//{
-
-//}
 
 //析构时要释放fd
 Task::~Task()
 {
-#ifdef TEST
+	close(fd);
+#ifdef _EPOLL_
 	cout << "~Task()" << endl;
 #endif
-	shared_ptr<Task> _task = shared_from_this();
-	myEpoll->del(static_pointer_cast<Task>(shared_from_this()));
+	//shared_ptr<Task> _task = shared_from_this();
+	//myEpoll->del(static_pointer_cast<Task>(shared_from_this()));
 
 	//这里为了加速运行，所以使用静态转型，由我自己保证安全性~~~~
 }
 //重写reset(),重写之后继承的SingleTimer里面的时间信息不会变，保证可以被成功弹出。
 void Task::reset()
+
 {
 	againTimes = 0;
 	message.clear();
@@ -108,21 +100,20 @@ __uint32_t Task::get_events()
 
 int Task::receive()
 {
-#ifdef TEST
-	cout << "receive!!" << this->get_fd() << endl;
-#endif
+
 	char buff[BUFF_SIZE];
 	while (true)
 	{
-		//int readNum = readn(buff,BUFF_SIZE);
-		int readNum = readn(fd, buff, BUFF_SIZE);
-#ifdef PTHREAD
-		cout << "readNum = " << readNum << endl;
+		
+		int readNum = readn(buff, BUFF_SIZE);
+#ifdef _EPOLL_
+	cout << "readNum = " << readNum << endl;
 #endif
 		if (readNum < 0)
 		{
 			perror("fail to read!!!\n");
-			isError = true;
+			isError = STATE_ERROR;
+			//这个时候直接break会快一些，不然的话进入到了state_machine多出一些判断
 		}
 		else if (readNum == 0)
 		{
@@ -136,24 +127,23 @@ int Task::receive()
 				else
 				{
 					++againTimes;
-#ifdef PTHREAD
-	cout << "againTimes = " << againTimes << endl;
-#endif
 				}
+				
 			}
 			else if (errno != 0)
 			{
-				isError = true;
+				isError = STATE_ERROR;
 			}
+			break;//注意这里也要break
 		}
 		message += string(buff, buff + readNum);
-#ifdef TEST
+#ifdef _EPOLL_
 		cout << "message = " << message << endl;
 #endif
 
 		state_machine();
 
-#ifdef PTHREAD
+#ifdef _EPOLL_
 		cout << "After state_machine!!" << endl;
 #endif
 
@@ -163,8 +153,8 @@ int Task::receive()
 			|| state == FINISH
 			|| isError == STATE_SUCCESS) //此时重置状态，长连接重新加入，短连接同错误，直接释放
 		{
-#ifdef PTHREAD
-	cout << "break" << endl;
+#ifdef _EPOLL_
+	cout << "break !! isError = " << isError << endl;
 #endif
 			break;
 
@@ -175,6 +165,7 @@ int Task::receive()
 	{
 		return -1;
 	}
+
 	if (state == FINISH)
 	{
 		if (keep_alive)
@@ -186,6 +177,9 @@ int Task::receive()
 		}
 		else
 		{
+			//shared_ptr<Task> thisTask(shared_from_this());
+			//myEpoll->del(thisTask);
+			//cout << "del short connect!!!" << endl;
 			return -1;
 		}
 	}
@@ -193,9 +187,6 @@ int Task::receive()
 	//接下来就是把该请求放入该对象所属时间管理器了
 	//要新建一个时间管理器管理该请求
 	//要重置该事件
-#ifdef PTHREAD
-	cout << "reset()" << endl;
-#endif
 	shared_ptr<SingleTimer> sp_tiemr(new SingleTimer(TIME_OUT));
 	set_singleManager(sp_tiemr);
 	timerManager->add(sp_tiemr);
@@ -209,84 +200,11 @@ int Task::receive()
 	}
 	events = EPOLLIN | EPOLLET | EPOLLONESHOT;
 
-#ifdef TEST
-	cout << "epoll->mod()" << endl;
-#endif // TEST
-
 	myEpoll->mod(dynamic_pointer_cast<Task>(shared_from_this()));
 	//加入任务队列
 	myEpoll->add_to_epollTask(shared_from_this());
 
-#ifdef PTHREAD
-	cout << "end receive" << endl;
-#endif
-
-}
-
-ssize_t Task::readn(void *_buff, size_t _n)
-{
-	size_t needToRead = _n;
-	ssize_t readOnce = 0;
-	ssize_t readSum = 0;
-	char *ptr = (char *)_buff;
-
-	while (needToRead > 0)
-	{
-#ifdef TEST
-		cout << "readn fd = " << fd << endl;
-#endif
-		if ((readOnce == read(fd, ptr, needToRead)) < 0)
-		{
-
-			if (errno == EINTR || errno == EAGAIN)
-			{
-				readOnce = 0;
-				continue;
-			}
-			else
-			{
-				return -1;
-			}
-		}
-#ifdef TEST
-		cout << "readOnce = " << readOnce << endl;
-#endif
-		readSum += readOnce;
-		needToRead -= readOnce;
-		ptr += readOnce;
-	}
-	return readSum;
-}
-
-ssize_t Task::wrriten(int _fd,void *_buff, size_t _n)
-{
-	size_t needToWrite = _n;
-	ssize_t writeOnce = 0;
-	ssize_t writeSum = 0;
-	char *ptr = (char *)_buff;
-	while (needToWrite > 0)
-	{
-#ifdef TEST
-		cout << "needToWrite = " << needToWrite << endl;
-#endif
-		if ((writeOnce == write(_fd, ptr, needToWrite)) < 0)
-		//if ((writeOnce == send(fd, ptr, needToWrite,MSG_DONTWAIT)) < 0)
-		{
-			if (errno == EINTR || errno == EAGAIN)
-			{
-				writeOnce = 0;
-				continue;
-			}
-			else
-			{
-				return -1;
-			}
-		}
-		writeSum += writeOnce;
-		needToWrite -= writeOnce;
-		ptr += writeOnce;
-	}
-	return writeSum;
+	return 0;
 }
 
 void Task::state_machine()
@@ -295,38 +213,27 @@ void Task::state_machine()
 	if (state == PARSE_URI)
 	{
 		parse_uri();
-#ifdef TEST
-		cout << "PARSE_URI" << endl;
-		if (state == PARSE_URI)
-		{
-			cout << "start parse_headers" << endl;
-		}
-#endif
+		cout << 1;
 	}
 
 	if (state == PARSE_HEADERS)
 	{
 		parse_headers();
-#ifdef TEST
-		cout << "PARSE_HREADERS " << endl;
-#endif
+		cout << 2;
 	}
 
 	if (state == RECV_BODY)
 	{
 		recv_body();
-#ifdef TEST
-		cout << "RECV_BODY" << endl;
-#endif
+		cout << 3;
 	}
 
 	if (state == ANALYSIS)
 	{
 		analysis();
-#ifdef TEST
-		cout << "ANALYSIS" << endl;
-#endif
+		cout << 4;
 	}
+
 }
 
 void Task::parse_uri()
@@ -430,12 +337,7 @@ void Task::parse_headers()
 	int key_start = -1, key_end = -1, value_start = -1, value_end = -1;
 	int now_read_line_begin = 0;
 	bool notFinish = true;
-	//#ifdef TEST
-	//cout << "start parse_headers" << endl;
-	//if(h_state != H_START){
-	//	cout << "h_state != H_START, = " << h_state << endl;
-	//}
-	//#endif
+
 	for (int i = 0; i < str.size() && notFinish; ++i)
 	{
 		switch (h_state)
@@ -447,9 +349,7 @@ void Task::parse_headers()
 			h_state = H_KEY;
 			key_start = i;
 			now_read_line_begin = i;
-#ifdef TEST
-			//cout << "H_START" << endl;
-#endif
+
 			break;
 		}
 		case H_KEY:
@@ -470,9 +370,7 @@ void Task::parse_headers()
 				isError = STATE_ERROR;
 				return;
 			}
-#ifdef TEST
-			//cout << "2" << endl;
-#endif
+
 			break;
 		}
 		case H_COLON:
@@ -486,18 +384,14 @@ void Task::parse_headers()
 				isError = STATE_ERROR;
 				return;
 			}
-#ifdef TEST
-			//cout << "3" << endl;
-#endif
+
 			break;
 		}
 		case H_SPACE:
 		{
 			h_state = H_VALUE;
 			value_start = i;
-#ifdef TEST
-			//cout << "4" << endl;
-#endif
+
 			break;
 		}
 		case H_VALUE:
@@ -518,9 +412,7 @@ void Task::parse_headers()
 				return;
 			}
 
-#ifdef TEST
-			//cout << "5" << endl;
-#endif
+
 			break;
 		}
 		case H_R:
@@ -538,10 +430,6 @@ void Task::parse_headers()
 				isError = STATE_ERROR;
 				return;
 			}
-#ifdef TEST
-			//cout << "6" << endl;
-#endif
-
 			break;
 		}
 		case H_N:
@@ -556,9 +444,7 @@ void Task::parse_headers()
 				h_state = H_KEY;
 			}
 
-#ifdef TEST
-			//cout << "7" << endl;
-#endif
+
 			break;
 		}
 		case H_FINAL_R:
@@ -572,9 +458,7 @@ void Task::parse_headers()
 				isError = STATE_ERROR;
 				return;
 			}
-#ifdef TEST
-			//cout << "8" << endl;
-#endif
+
 			break;
 		}
 		case H_FINAL_N:
@@ -582,20 +466,12 @@ void Task::parse_headers()
 			notFinish = false;
 			key_start = i;
 			now_read_line_begin = i;
-#ifdef TEST
-			//cout << "9" << endl;
-#endif
-
 			break;
 		}
 		}
 	}
 	if (h_state == H_FINAL_N)
 	{
-#ifdef TEST
-		cout << "h_state == H_FINAL_N" << endl;
-		cout << now_read_line_begin << " " << str.size() << endl;
-#endif
 		str = str.substr(now_read_line_begin);
 
 		isError = STATE_SUCCESS;
@@ -607,14 +483,9 @@ void Task::parse_headers()
 		{
 			state = ANALYSIS;
 		}
-#ifdef TEST
-		cout << "state = " << state << endl;
-#endif
 		return;
 	}
-#ifdef TEST
-	cout << "h_state != H_FINAL_N" << endl;
-#endif
+
 
 	str = str.substr(now_read_line_begin);
 	isError = STATE_AGAIN;
@@ -622,30 +493,29 @@ void Task::parse_headers()
 
 void Task::analysis()
 {
-#ifdef TEST
-	for (const auto &pair : headers)
-	{
-		cout << "key = " << pair.first << "  value = " << pair.second << endl;
-	}
-
-#endif
+	/*if(httpVersion == HTTP_11){*/
 	if (method == METHOD_POST)
 	{
 
 		char header[BUFF_SIZE];
 		sprintf(header, "HTTP/1.1 %d %s\r\n", 200, "OK");
-		if (headers.find("Connection") != headers.end() && headers["Connection"] == "keep-alive")
+		if (headers.find("Connection") != headers.end() && (headers["Connection"] == "keep-alive") 
+			|| headers["Connection"] == "Keep-Alive")
 		{
 			keep_alive = true;
-			sprintf(header, "%sConnection: keep-alive\r\n", header);
-			sprintf(header, "%skeep-alive: timeout=%d\r\n", header, EPOLL_WAIT_TIME);
+			sprintf(header, "%sConnection: %s\r\n", header, headers["Connection"]);
+			sprintf(header, "%s%s timeout=%d\r\n", header, headers["Connection"], EPOLL_WAIT_TIME);
+		}else{
+			keep_alive = false;
+			sprintf(header, "%sConnection: %s\r\n", header, headers["Connection"]);
+			sprintf(header, "%s%s timeout=%d\r\n", header, headers["Connection"], EPOLL_WAIT_TIME);
 		}
 
 		char *sendMessage = "I have receiced this.";
 
 		sprintf(header, "%sContent-length: %zu\r\n", header, strlen(sendMessage));
 		sprintf(header, "%s\r\n", header);
-		size_t sendLen = (size_t)writen(fd, header, strlen(header));
+		size_t sendLen = (size_t)writen(header, strlen(header));
 		if (sendLen != strlen(header))
 		{
 			perror("Send header failed");
@@ -653,7 +523,7 @@ void Task::analysis()
 			return;
 		}
 
-		sendLen = (size_t)writen(fd,(void*)sendMessage, strlen(sendMessage));
+		sendLen = (size_t)writen((void*)sendMessage, strlen(sendMessage));
 		if (sendLen != strlen(sendMessage))
 		{
 			perror("Send message failed");
@@ -667,14 +537,16 @@ void Task::analysis()
 	{
 		char header[BUFF_SIZE];
 		sprintf(header, "HTTP/1.1 %d %s\r\n", 200, "OK");
-		if (headers.find("Connection") != headers.end() && headers["Connection"] == "keep-alive")
+		if (headers.find("Connection") != headers.end() && (headers["Connection"] == "keep-alive")
+		|| (headers["Connection"] == "Keep-Alive"))
 		{
-#ifdef TEST
-			cout << "keep_alive" << endl; //很奇怪，有时候大写，有时小写
-#endif
+
 			keep_alive = true;
-			sprintf(header, "%sConnection: keep-alive\r\n", header);
-			sprintf(header, "%skeep-alive: timeout=%d\r\n", header, EPOLL_WAIT_TIME);
+			sprintf(header, "%sConnection: %s\r\n", header, headers["Connection"]);
+			sprintf(header, "%s%s timeout=%d\r\n", header, headers["Connection"], EPOLL_WAIT_TIME);
+		}else{
+			sprintf(header, "%sConnection: %s\r\n", header, headers["Connection"]);
+			sprintf(header, "%s%s timeout=%d\r\n", header, headers["Connection"], EPOLL_WAIT_TIME);
 		}
 
 		int dotPos = fileName.find('.');
@@ -696,13 +568,9 @@ void Task::analysis()
 		sprintf(header, "%sContent-length: %ld\r\n", header, sbuf.st_size);
 
 		sprintf(header, "%s\r\n", header);
-#ifdef TEST
-		cout << "start write!!" << endl;
-#endif
-		size_t sendLen = (size_t)writen(fd,header, strlen(header));
-#ifdef TEST
-		cout << "sendLen = " << sendLen << endl;
-#endif
+
+		size_t sendLen = (size_t)writen(header, strlen(header));
+
 		if (sendLen != strlen(header))
 		{
 			perror("Send header failed");
@@ -713,11 +581,9 @@ void Task::analysis()
 		char *src_addr = static_cast<char *>(mmap(NULL, sbuf.st_size, PROT_READ, MAP_PRIVATE, src_fd, 0));
 		close(src_fd);
 
-#ifdef TEST
-		cout << "sendheader:   " << header << endl;
-#endif
+
 		// 发送文件并校验完整性
-		sendLen = writen(fd, src_addr, sbuf.st_size);
+		sendLen = writen(src_addr, sbuf.st_size);
 		if (sendLen != sbuf.st_size)
 		{
 			perror("Send file failed");
@@ -727,12 +593,102 @@ void Task::analysis()
 		munmap(src_addr, sbuf.st_size);
 		isError = STATE_SUCCESS;
 		state = FINISH;
+		LOG_INFO("thread send a page to client:%d",fd);
 	}
 	else
 	{
 		isError = STATE_ERROR;
 		return;
 	}
+	/*}else{
+		//httpVersion = HTTP_10
+		if (method == METHOD_POST)
+	{
+
+		char header[BUFF_SIZE];
+		sprintf(header, "HTTP/1.0 %d %s\r\n", 200, "OK");
+
+		char *sendMessage = "I have receiced this.";
+
+		sprintf(header, "%sContent-length: %zu\r\n", header, strlen(sendMessage));
+		sprintf(header, "%s\r\n", header);
+		size_t sendLen = (size_t)writen(header, strlen(header));
+		if (sendLen != strlen(header))
+		{
+			perror("Send header failed");
+			isError = true;
+			return;
+		}
+
+		sendLen = (size_t)writen((void*)sendMessage, strlen(sendMessage));
+		if (sendLen != strlen(sendMessage))
+		{
+			perror("Send message failed");
+			isError = true;
+			return;
+		}
+
+		isError = STATE_SUCCESS;
+	}
+	else if (method == METHOD_GET)
+	{
+		char header[BUFF_SIZE];
+		sprintf(header, "HTTP/1.0 %d %s\r\n", 200, "OK");
+
+		int dotPos = fileName.find('.');
+		const char *filetype;
+		if (dotPos < 0)
+			filetype = MimeType::getMime("default").c_str();
+		else
+			filetype = MimeType::getMime(fileName.substr(dotPos)).c_str();
+		struct stat sbuf;
+		if (stat(fileName.c_str(), &sbuf) < 0)
+		{
+			handle_error(404, "Not Found!");
+			isError = STATE_ERROR;
+			return;
+		}
+
+		sprintf(header, "%sContent-type: %s\r\n", header, filetype);
+		// 通过Content-length返回文件大小
+		sprintf(header, "%sContent-length: %ld\r\n", header, sbuf.st_size);
+
+		sprintf(header, "%s\r\n", header);
+
+		size_t sendLen = (size_t)writen(header, strlen(header));
+
+		if (sendLen != strlen(header))
+		{
+			perror("Send header failed");
+			isError = STATE_ERROR;
+			return;
+		}
+		int src_fd = open(fileName.c_str(), O_RDONLY, 0);
+		char *src_addr = static_cast<char *>(mmap(NULL, sbuf.st_size, PROT_READ, MAP_PRIVATE, src_fd, 0));
+		close(src_fd);
+
+
+		// 发送文件并校验完整性
+		sendLen = writen(src_addr, sbuf.st_size);
+		if (sendLen != sbuf.st_size)
+		{
+			perror("Send file failed");
+			isError = STATE_ERROR;
+			return;
+		}
+		munmap(src_addr, sbuf.st_size);
+		isError = STATE_SUCCESS;
+		state = FINISH;
+		LOG_INFO("thread send a page to client:%d",fd);
+	}
+	else
+	{
+		isError = STATE_ERROR;
+		return;
+	}
+	}
+*/
+
 }
 
 void Task::recv_body()
@@ -769,72 +725,70 @@ void Task::handle_error(int _errNum, string _shortMsg)
 	header_buff += "Content-length: " + to_string(body_buff.size()) + "\r\n";
 	header_buff += "\r\n";
 	sprintf(send_buff, "%s", header_buff.c_str());
-	writen(fd, send_buff, strlen(send_buff));
+	writen(send_buff, strlen(send_buff));
 	sprintf(send_buff, "%s", body_buff.c_str());
-	writen(fd, send_buff, strlen(send_buff));
+	writen(send_buff, strlen(send_buff));
 }
 
-ssize_t Task::readn(int fd, void *buff, size_t n)
+ssize_t Task::readn(void* _buff, size_t _n) {
+  size_t needToRead = _n;
+  ssize_t readOnce = 0;
+  ssize_t readSum = 0;
+  char *ptr = (char *)_buff;
+  while (needToRead > 0) {
+    if ((readOnce = read(fd, ptr, needToRead)) < 0) {
+      if (errno == EINTR){
+        readOnce = 0;
+	  }
+      else if (errno == EAGAIN) {
+        return readSum;
+		//你连续做read操作而没有数据可读。此时程序不会阻塞起来等待数据准备就绪返回，
+		//read函数会返回一个错误EAGAIN，提示你的应用程序现在没有数据可读请稍后再试。
+		//之前没有return 所以就在读完数据之后不断的读数据，导致错误
+      } else {
+        return -1;
+      }
+    } else if (readOnce == 0)
+      break;
+    readSum += readOnce;
+    needToRead -= readOnce;
+    ptr += readOnce;
+  }
+  return readSum;
+}
+
+
+ssize_t Task::writen(void* _buff, size_t _n)
 {
-	size_t nleft = n;
-	ssize_t nread = 0;
-	ssize_t readSum = 0;
-	char *ptr = (char *)buff;
-	while (nleft > 0)
+	size_t needToWrite = _n;
+	ssize_t writeOnce = 0;
+	ssize_t writeSum = 0;
+	char* ptr = (char*)_buff;
+	while (needToWrite > 0)
 	{
-		//if ((nread = read(fd, ptr, nleft)) < 0)
-		if ((nread = recv(fd, ptr, n, 0)) < 0)
+		if ((writeOnce = write(fd, ptr, needToWrite)) <= 0)
+			//if ((writeOnce == send(fd, ptr, needToWrite,MSG_DONTWAIT)) < 0)
 		{
-			if (errno == EINTR)
-				nread = 0;
-			else if (errno == EAGAIN)
+			if(writeOnce < 0){
+			if (errno == EINTR )
 			{
-				return readSum;
+				//如果进程在一个慢系统调用(slow system call)中阻塞时，当捕获到某个信号且相应信号处理函数返回时，
+				//这个系统调用被中断,调用返回错误，设置errno为EINTR（相应的错误描述为“Interrupted system call”）。
+				writeOnce = 0;
+				continue;
+			}
+			else if (errno == EAGAIN) {
+				return writeSum;
 			}
 			else
 			{
 				return -1;
 			}
 		}
-		else if (nread == 0)
-			break;
-		readSum += nread;
-		nleft -= nread;
-		ptr += nread;
+		}
+		writeSum += writeOnce;
+		needToWrite -= writeOnce;
+		ptr += writeOnce;
 	}
-	return readSum;
-}
-
-ssize_t Task::writen(int fd, void *buff, size_t n)
-{
-    size_t nleft = n;
-    ssize_t nwritten = 0;
-    ssize_t writeSum = 0;
-
-#ifdef TEST
-    cout << n << endl;
-#endif
-
-    char *ptr = (char*)buff;
-   while (nleft > 0)
-   if(nleft > 0)
-    {
-        if ((nwritten = write(fd, ptr, nleft)) <= 0)
-        {
-            if (nwritten < 0)
-            {
-                if (errno == EINTR || errno == EAGAIN)
-                {
-                    nwritten = 0;
-                    //continue;
-                }
-                else
-                    return -1;
-            }
-        }
-        writeSum += nwritten;
-        nleft -= nwritten;
-        ptr += nwritten;
-    }
-    return writeSum;
+	return writeSum;
 }

@@ -1,5 +1,5 @@
-// @Author Lin Ya
-// @Email xxbbb@vip.qq.com
+// @Author Lin Tao
+// @Email putaopu@qq.com
 #pragma once
 #include <pthread.h>
 #include <cstdio>
@@ -33,3 +33,4 @@ class MutexLockGuard : noncopyable {
  private:
   MutexLock &mutex;
 };
+

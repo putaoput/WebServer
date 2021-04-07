@@ -4,35 +4,45 @@
 #include "ThreadPool.h"
 #include "config.h"
 #include <iostream>
+#include "Log.h"
+#include "MyEpoll.h"
 
 using namespace std;
 
 //-------------------------ThreadPoolTask------------------------
 
 ThreadPoolTask::ThreadPoolTask(shared_ptr<Task> _task)
-	:args(_task)
+	//:args(_task)
 {
-	fun = [](shared_ptr<Task> _task)->void {
+	cout << _task.use_count() << endl;
+	args = _task;
+	cout << _task.use_count() << endl;
+	fun = [](shared_ptr<Task> _task)->int {
 #ifdef TEST
 		cout << "_task.use_count() = " << _task.use_count() << endl;
 #endif // TEST
 
-		_task->receive();
+		return _task->receive();
 	};
 }
 
 ThreadPoolTask::ThreadPoolTask()
 {
-	fun = [](shared_ptr<Task> _task)->void {
+	fun = [](shared_ptr<Task> _task)->int{
 	#ifdef TEST
 		cout << "TEST FUNC SUCCESS\n"<<endl;
-		
 	#endif
-	_task->receive();
+	return _task->receive();
 	};
 	args = nullptr;
 }
 
+ThreadPoolTask:: ~ThreadPoolTask(){
+		cout << "~ThreadPoolTask" << endl;
+		cout << "args use_count() " << args.use_count() << endl;
+		//args.reset();
+		cout << "after reset()" << endl;
+}
 ////自定义拷贝函数，交换智能指针
 //ThreadPoolTask::ThreadPoolTask(const ThreadPoolTask& _task) {
 //	_task.get_args()
@@ -44,9 +54,7 @@ void ThreadPoolTask::reset() {
 
 void ThreadPoolTask::swap(ThreadPoolTask& _newTask) {
 	args.swap(_newTask.args);
-	#ifdef TEST
-		cout << "swap" << args.use_count() << endl;
-	#endif
+	
 }
 
 
@@ -88,27 +96,43 @@ void ThreadPoolTask::swap(ThreadPoolTask& _newTask) {
 
 
 //-------------------------ThreadPool------------------------
+/*
+	MutexLock TPlock;
+	Condition TPnotify(TPlock);
+	std::vector<pthread_t> threads;
+	std::vector<shared_ptr<ThreadPoolTask>> taskQueue;
+	int threadCount = 0;
+	int queueSize = MAX_QUEUE;
+	int head = 0;
+	int shutdwon = 0;
+	int started = 0;
+	bool isValid = 0;
+	int tail = 0;
+	int ThreadPool::count = 0;
+*/
 
-MutexLock ThreadPool::TPlock;
-Condition ThreadPool::TPnotify(TPlock);
-std::vector<pthread_t> ThreadPool::threads;
-std::vector<shared_ptr<ThreadPoolTask>> ThreadPool::taskQueue;
-int ThreadPool::threadCount = 0;
-int ThreadPool::queueSize = MAX_QUEUE;
-int ThreadPool::head = 0;
-int ThreadPool::shutdwon = 0;
-int ThreadPool::started = 0;
-bool ThreadPool::isValid = 0;
-int ThreadPool::tail = 0;
-int ThreadPool::count = 0;
+
+	MutexLock ThreadPool::TPlock;
+	Condition ThreadPool::TPnotify(TPlock);
+	std::vector<pthread_t> ThreadPool::threads;
+	std::vector<shared_ptr<ThreadPoolTask>> ThreadPool::taskQueue;
+	int ThreadPool::threadCount = 0;
+	int ThreadPool::queueSize = MAX_QUEUE;
+	int ThreadPool::head = 0;
+	int ThreadPool::shutdwon = 0;
+	int ThreadPool::started = 0;
+	bool ThreadPool::isValid = 0;
+	int ThreadPool::tail = 0;
+	int ThreadPool::count = 0;
 
 int ThreadPool::create(int _threadCount, int _queueSize)//int _threadCount, int _queueSize) 
 
 {
-#ifdef TEST
-	cout << "ThreadPoll constuct!!" << endl;
-	cout << _queueSize << endl;
-#endif 
+
+
+	LOG_DEBUG("ThreadPoll constuct! queue size = %d", _queueSize);
+	
+
 	if (_threadCount <= 0 || _threadCount > MAX_THREADS) {
 		printf("num of threads error!!!\n");
 		return -1;
@@ -124,11 +148,7 @@ int ThreadPool::create(int _threadCount, int _queueSize)//int _threadCount, int 
 	}
 	else {
 		for (int i = 0; i < _queueSize; ++i) {
-#ifdef TEST
-			cout << "taskQueue constuct!!" << endl;
-#endif 
 			taskQueue.push_back(shared_ptr<ThreadPoolTask>(new ThreadPoolTask));
-
 		}
 	}
 
@@ -156,18 +176,7 @@ int ThreadPool::create(int _threadCount, int _queueSize)//int _threadCount, int 
 }
 
 int ThreadPool::add(shared_ptr<ThreadPoolTask> _newTask) {
-#ifdef TEST
-	cout << "add new Task" << endl;
-	//测试有没有和定时器分离成功
-	if (_newTask->args->get_singleManager()->separate_success() == false) {
-		cout << "separate failed!!" << endl;
-	}
-#endif
 
-	/*if (pthread_mutex_lock(&lock) != 0) {
-		perror("lock failed while add new task!!!\n");
-		return -1;
-	}*/
 	MutexLockGuard lock(TPlock);
 	if (count == queueSize) {
 		perror("taskQueue is full!!!\n");
@@ -192,29 +201,12 @@ int ThreadPool::add(shared_ptr<ThreadPoolTask> _newTask) {
 #endif
 	//唤醒等待该互斥量的线程
 	TPnotify.notify();
-	/*if (pthread_cond_signal(&notify) != 0)
-	{
-		perror("pthread_cond_signal failed after add new task!!!\n");
-		return -1;
-	}
-	
-
-	if (pthread_mutex_unlock(&lock) != 0) {
-		perror("pthread_mutex_unlock failed after add new task!!!\n");
-		return -1;
-	}*/
-
-
-#ifdef TEST
-	_newTask->args->get_fd();
-	cout << "end add new Task" << endl;
-#endif
-
+	LOG_INFO("Add a new task of fd:%d to ThreadPool, count = %d", _newTask->args->get_fd(),count);
 	return 0;
 }
 
 //void ThreadPool:: shutdown_pool(int _shutdwon) {
-	//ThreadPool::shutdwon = _shutdown;
+	//shutdwon = _shutdown;
 //}
 
 void* ThreadPool::running(void* args) {
@@ -224,7 +216,48 @@ void* ThreadPool::running(void* args) {
 		cout << "start()" << endl;
 		cout << "count() = " << count << endl;
 #endif
-		/*pthread_mutex_lock(&lock);*/
+		/*pthread_mutex_lock(&lock);*/	
+#ifdef _EPOLL_
+		cout << "running" << endl;
+#endif
+	{
+		shared_ptr<ThreadPoolTask> SPtask = get_thread_task();
+#ifdef _EPOLL_
+		cout << "get_task()" << endl;
+#endif		
+		if((SPtask->fun)(SPtask->args) == -1)
+		{
+			//有一种情况是短连接，剩余时错误和重试次数超过上限
+#ifdef _EPOLL_
+	cout << "need to ~task()" << endl; 
+#endif
+			SPtask->args->get_myEpoll()->del(SPtask->args);
+			
+			LOG_DEBUG("Thread solve a task of client:%d ", SPtask->args->get_fd());
+#ifdef _EPOLL_
+		cout << "task.use_count();" << SPtask->args.use_count() << endl;
+#endif			
+		}
+	}	
+
+	}
+
+	//如果退出线程
+	MutexLockGuard lock (TPlock);
+	--started;
+
+	pthread_exit(NULL);
+
+	LOG_INFO("pthread exit");
+	return (NULL);
+}
+
+bool ThreadPool::is_valid() {
+	return isValid;
+}
+
+//这个函数时为了解决RAII锁自动释放的问题。其实可以用大括号实现
+shared_ptr<ThreadPoolTask> ThreadPool::get_thread_task(){
 		MutexLockGuard lock(TPlock);
 		while ((count == 0) && (!shutdwon)) {
 			TPnotify.wait();
@@ -238,45 +271,28 @@ void* ThreadPool::running(void* args) {
 		//检测到关闭信号则关闭
 		if ((shutdwon == IMMEDIATE_SHUTDOWN) ||
 			(shutdwon == WAIT_SHUTDOWN && !count)) {
-			break;
+			return nullptr;
 		}
 #ifdef PTHREAD
 		cout << "head = " << head << endl;
 #endif
-		shared_ptr<ThreadPoolTask> task = taskQueue[head];
-		taskQueue[head].reset();
+		shared_ptr<ThreadPoolTask> task(new ThreadPoolTask);
+
+		taskQueue[head].swap(task);
 		head = (head + 1) % queueSize;
 		//!!重大失误，没有队列里的task,没有--count;
+		//取出任务后需要释放锁，然后唤醒其他等待线程
 		--count;
-
+		
+		TPnotify.notify();
+		
+		
+		LOG_DEBUG("Thread get a task of client:%d, now: head = %d, count = %d"
+			,task->args->get_fd(), head,count);
 		//pthread_mutex_unlock(&lock);
 
-#ifdef TEST
-		cout << "" << task->args->get_fd() << endl;
-		cout << "before (task.fun)(task.args)" << endl;
 
-#endif
-
-		(task->fun)(task->args);
-#ifdef PTHREAD
-		cout << "after (task.fun)(task.args)" << endl;
-#endif
-
-#ifdef PTHREAD
-		cout << "after task.reset()" << endl;
-#endif
-	}
-
-	//如果退出线程
-	MutexLockGuard lock (TPlock);
-	--started;
-	//pthread_mutex_unlock(&lock);
-	pthread_exit(NULL);
-	return (NULL);
-}
-
-bool ThreadPool::is_valid() {
-	return isValid;
+		return task;
 }
 /*
 	对互斥锁mutex的介绍
@@ -337,5 +353,5 @@ bool ThreadPool::is_valid() {
 //
 //pthread_cond_broadcast(pthread_cond_t* cond);
 
-	//void pthread_exit(void* retval);
+//void pthread_exit(void* retval);
 	//通过retval参数想线程的回收者传递其退出信息，该函数执行完毕之后不会返回到调用者，而且永远不会失败。

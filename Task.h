@@ -20,7 +20,7 @@
 class MyEpoll;
 class TimerManager;
 
-class Task: public std:: enable_shared_from_this<Task>
+class Task: public std:: enable_shared_from_this<Task>//,noncopyable
 {
 public:
 	Task(int, std::shared_ptr<MyEpoll>, size_t, std::string, std::shared_ptr<TimerManager>,__uint32_t);
@@ -36,10 +36,19 @@ public:
 	__uint32_t get_events();
 	int receive();
 	void separate();
+	std::shared_ptr<TimerManager> get_timerManager(){
+		return timerManager;
+	}
+
+	std::shared_ptr<MyEpoll> get_myEpoll(){
+		return myEpoll;
+	}
 private:
+
+	Task(const Task& _task) = delete;
+	Task& operator= (const Task& p) = delete;
 	ssize_t readn(void* _buff,size_t _n);
-	ssize_t readn(int fd, void* _buff, size_t n);
-	ssize_t writen(int _fd, void* _buff,size_t _n);
+	ssize_t writen(void* _buff,size_t _n);
 	void state_machine();
 	void parse_uri();
 	void parse_headers();
@@ -66,8 +75,6 @@ private:
 	std::map<std::string, std::string> headers;
 	std::weak_ptr<SingleTimer> timer;
 	std::shared_ptr<TimerManager> timerManager;
-
-	ssize_t wrriten(int fd, void *buff, size_t n);
 	
 };
 

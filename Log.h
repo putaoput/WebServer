@@ -46,7 +46,7 @@ private:
 	const char* path;
 	const char* suffix;
 
-	int MAX_LINE;
+	//int MAX_LINES;
 
 	int lineCount;
 	int toDay;
@@ -75,9 +75,9 @@ do{\
 
 
 #define LOG_DEBUG(_format,...) do{LOG_BASE(0,_format, ##__VA_ARGS__)}while(false);
-#define LOG_INFO(_format,...) do{LOG_BASE(0,_format, ##__VA_ARGS__)}while(false);
-#define LOG_WARN(_format,...) do{LOG_BASE(0,_format, ##__VA_ARGS__)}while(false);
-#define LOG_ERROR(_format,...) do{LOG_BASE(0,_format, ##__VA_ARGS__)}while(false);
+#define LOG_INFO(_format,...) do{LOG_BASE(1,_format, ##__VA_ARGS__)}while(false);
+#define LOG_WARN(_format,...) do{LOG_BASE(2,_format, ##__VA_ARGS__)}while(false);
+#define LOG_ERROR(_format,...) do{LOG_BASE(3,_format, ##__VA_ARGS__)}while(false);
 
 /*
 * # ## __VA_ARGS__ 和 ##__VA_ARGS__的作用

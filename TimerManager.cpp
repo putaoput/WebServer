@@ -7,14 +7,14 @@
 #include "SingerTimer.h"
 #include "TimerManager.h"
 #include "MyEpoll.h"
+#include "config.h"
 
 using namespace std;
 
 //---------------SingleTimer的实现------------------
 
 
-SingleTimer::SingleTimer( size_t _timeOut):
-	isDelete(false)//isValid(true)
+SingleTimer::SingleTimer( size_t _timeOut)
 {
 	expiredTime = calcu_time(_timeOut);
 }
@@ -24,7 +24,7 @@ SingleTimer::~SingleTimer(){
 	//还有一个在MyEpoll里面，所以SingleTimer析构掉之后，task随之析构，然后task析构时，要从MyEpoll中卸载对应fd。
 	//总而之fd和Task是绑定的
 	if(task){
-	task->~Task();
+		task->get_myEpoll()->del(task);
 	}
 }
 
@@ -38,10 +38,10 @@ bool SingleTimer::is_valid() {
 	return expiredTime >= calcu_time();
 }
 
-
-size_t SingleTimer::get_expiredTime() {
-	return expiredTime;
+bool SingleTimer::is_delete(){
+	return expiredTime <= calcu_time();
 }
+
 
 size_t SingleTimer::calcu_time(size_t _timeOut) {
 	struct timeval now;
@@ -94,30 +94,24 @@ void TimerManager::add(shared_ptr<SingleTimer> _singleTimer) {
 }
 
 void TimerManager::pop() {
-	/*if (pthread_mutex_lock(&lock) != 0) {
-		perror("lock failed while pop timer!!!\n");
-		return ;
-	}*/
+	
 	MutexLockGuard lock(TMlock);
-	while (timerManager.empty() == false && timerManager.top()->is_valid() == false)
+	while (timerManager.empty() == false && timerManager.top()->is_delete())
 		{
-			timerManager.pop();
-			#ifdef TEST
+			shared_ptr<Task> task = timerManager.top()->get_task();
+			if(task){
+			task->get_myEpoll()->del(task);
+#ifdef _EPOLL_
 				cout << "pop a task" << endl;
-			#endif
-		}
+#endif
+			}
+			timerManager.pop();
 
-	//唤醒等待该互斥量的线程
-	/*if (pthread_cond_signal(&notify) != 0)
-	{
-		perror("pthread_cond_signal failed after timerManager pop!!!\n");
-		return ;
-	}*/
+		}
+#ifdef TEST
+		cout << "timerManager.size = " << timerManager.size() << endl;
+#endif
 	TMnotify.notify();
-	//if (pthread_mutex_unlock(&lock) != 0) {
-	//	perror("pthread_mutex_unlock failed after after timerManager pop!!!\n");
-	//	return ;
-	//}
 	
 }
 

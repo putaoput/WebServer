@@ -18,10 +18,14 @@ class ThreadPoolTask {
 public:
 	ThreadPoolTask(std::shared_ptr<Task> _task);
 	ThreadPoolTask();
+	~ThreadPoolTask();
+
+	//ThreadPoolTask(const ThreadPoolTask& _tpt){}
+
 	void reset();
 	void swap(ThreadPoolTask& _newTask);
 
-	std::function<void(std::shared_ptr<Task>)> fun;
+	std::function<int(std::shared_ptr<Task>)> fun;
 	std::shared_ptr<Task> args;
 	//fun用来存储一个可调用对象void返回值，（参数）。
 };
@@ -49,8 +53,10 @@ public:
 	//static void shutdown_pool(int _shutdown);
 	static bool is_valid();
 	static void* running(void* args);
-
+	
 private:
+ 	static std::shared_ptr<ThreadPoolTask> get_thread_task();
+
 	static MutexLock TPlock;
 	static Condition TPnotify;
 	static std::vector<pthread_t> threads;

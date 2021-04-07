@@ -7,6 +7,8 @@
 //#define TEST
 //#define PTHREAD
 #define KA
+//#define _LOG_
+#define _EPOLL_
 
 //----------------- MyEpoll---------------
 #include <string>

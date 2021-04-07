@@ -1,5 +1,5 @@
-// @Author Lin Ya
-// @Email xxbbb@vip.qq.com
+// @Author Lin Tao
+// @Email putaopu@qq.com
 #pragma once
 #include <errno.h>
 #include <pthread.h>

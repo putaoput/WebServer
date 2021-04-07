@@ -6,6 +6,7 @@
 #include <sys/epoll.h>
 #include <vector>
 #include <unordered_map>
+#include <map>
 #include <memory>
 
 #include "ThreadPool.h"
@@ -18,6 +19,7 @@ public:
 	int add(std::shared_ptr<Task> _task);
 	int mod(std::shared_ptr<Task> _task);
 	int del(std::shared_ptr<Task> _task);
+	int del(int _fd);
 	int wait(int _maxEvents, int timeOut, std::string _path);
 
 	void add_to_epollTask(std::shared_ptr<Task> _task){
@@ -32,7 +34,7 @@ private:
 	int epoll_fd;
 	epoll_event* eventsArr;
 	bool isValid;//初始化失败，则isvalid会变成fasle;
-	std::unordered_map<int, std::shared_ptr<Task>> epollTask;
+	std::map<int, std::shared_ptr<Task>> epollTask;
 	std::vector<std::shared_ptr<Task>> TaskArr;
 	std::shared_ptr<TimerManager> timerManager;//时间管理器
 };
