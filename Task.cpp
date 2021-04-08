@@ -120,6 +120,9 @@ int Task::receive()
 			perror("read but read_num == 0");
 			if (errno == EAGAIN)
 			{
+#ifdef _EPOLL_
+		cout << "again times = " << againTimes << endl;
+#endif 
 				if (againTimes > AGAIN_MAX_TIMES)
 				{
 					isError = STATE_ERROR;
@@ -161,7 +164,7 @@ int Task::receive()
 		}
 	}
 
-	if (isError)
+	if (isError == STATE_ERROR)
 	{
 		return -1;
 	}
@@ -190,7 +193,7 @@ int Task::receive()
 	shared_ptr<SingleTimer> sp_tiemr(new SingleTimer(TIME_OUT));
 	set_singleManager(sp_tiemr);
 	timerManager->add(sp_tiemr);
-	reset();
+	//reset();
 
 	//然后注册该事件
 	if (myEpoll == nullptr)

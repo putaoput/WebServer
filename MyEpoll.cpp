@@ -83,6 +83,9 @@ int MyEpoll::mod(shared_ptr<Task> _task) {
 }
 
 int MyEpoll::del(shared_ptr<Task> _task) {
+#ifdef _EPOLL_
+	cout << "del()" << endl;
+#endif
 	if(epollTask.find(_task->get_fd()) == epollTask.end()){
 		cout << "not del" << endl;
 		return 0;
@@ -104,6 +107,7 @@ int MyEpoll::del(shared_ptr<Task> _task) {
 	if(epollTask.find(_task->get_fd()) != epollTask.end()){
 		new helper(_task);
 		epollTask.erase(_task->get_fd());
+		close(_task->get_fd());
 		LOG_INFO("Del fd:%d !!", _task->get_fd());
 	}
 #ifdef _EPOLL_
@@ -117,6 +121,9 @@ int MyEpoll::del(int _fd){
 	event.data.fd = _fd;
 	event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
 	
+#ifdef _EPOLL_
+	cout << "del()" << endl;
+#endif
 	if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, _fd, &event) < 0)
 	{
 		perror("epoll_del failed!!!\n");
@@ -126,12 +133,13 @@ int MyEpoll::del(int _fd){
 	if(epollTask.find(_fd )!= epollTask.end()){
 		new helper (epollTask[_fd]);
 		epollTask.erase(_fd);
+		close(_fd);
 		LOG_INFO("Del fd:%d!!", _fd);
 	}
 	return 0;
 }
-int MyEpoll::wait(int maxEvents, int timeOut, string _path) {
-	int eventCount = epoll_wait(epoll_fd, eventsArr, maxEvents, timeOut);
+int MyEpoll::wait(int maxEvents, int _timeOut, string _path) {
+	int eventCount = epoll_wait(epoll_fd, eventsArr, maxEvents, _timeOut);
 	//timeOut指定epoll的超时值，如果为-1将永远阻塞
 	//events 里存储了监听到的所有事件，
 	if (eventCount < 0) {
@@ -139,9 +147,7 @@ int MyEpoll::wait(int maxEvents, int timeOut, string _path) {
 		LOG_ERROR("epoll wait error");
 		return -1;
 }
-	else {
 		LOG_INFO("eventCount = %d", eventCount);
-	}
 #ifdef PTHREAD
 	cout << "eventCount = " << eventCount << endl;
 #endif

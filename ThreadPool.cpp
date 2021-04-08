@@ -231,6 +231,7 @@ void* ThreadPool::running(void* args) {
 #ifdef _EPOLL_
 	cout << "need to ~task()" << endl; 
 #endif
+			
 			SPtask->args->get_myEpoll()->del(SPtask->args);
 			
 			LOG_DEBUG("Thread solve a task of client:%d ", SPtask->args->get_fd());
