@@ -4,11 +4,14 @@
 #pragma once
 
 //--------------------------Test-------------
-//#define TEST
-//#define PTHREAD
-#define KA
-//#define _LOG_
-#define _EPOLL_
+
+  //#define TEST
+  //#define PTHREAD
+  //#define KA
+  //#define _LOG_
+  //#define _EPOLL_
+  //#define _MYSQL_
+  #define _WEB_
 
 //----------------- MyEpoll---------------
 #include <string>
@@ -19,9 +22,7 @@ constexpr int LISTEN_MAX = 1024;
 同时可打开文件数量的限制(这是因为系统为每个TCP连接都要创建一个socket句柄，
 每个socket句柄同时也是一个文件句柄)。
 可使用ulimit命令查看系统允许当前用户进程打开的文件数限制：
-[speng@as4 ~]$ ulimit -n
-
-
+ulimit -n
 */
 
 constexpr int MAX_EVENATS = 5000;//epoll_events结构体数组的大小
@@ -32,7 +33,7 @@ constexpr int MAX_EVENATS = 5000;//epoll_events结构体数组的大小
 constexpr size_t TIME_OUT = 500;//ms.
 
 
-constexpr int MAX_THREADS = 1024;
+constexpr int MAX_THREADS = 10240;
 constexpr int MAX_QUEUE = 65535;
 
 typedef enum {
@@ -84,5 +85,8 @@ enum HeadersState
 //--------------------main---------------------
 constexpr int QUEUE_NUM = 65535;
 const std::string PATH = "/";
+
+
+
 
 

@@ -4,7 +4,6 @@
 #include "Buffer.h"
 
 //-------------------------BufferµÄÊµÏÖ-------------------------
-
 Buffer::Buffer(int _size)
 	:buffer(_size),
 	readPos(0),

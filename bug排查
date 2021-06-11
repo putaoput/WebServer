@@ -1,0 +1,7 @@
+bug1： 无法添加描述符，file existed 。发现没有把acceppt得到的fd注册到epoll_fd上
+bug2： bad weak_ptr。没有初始化对象时没有用智能指针包裹
+bug3：bad function call。一路排查已经发现接受连接是成功的，现在怀疑线程池里面的包装的ThreadPoolTask可能有问题，可能function有问题。使用浏览器浏览网页，发现第一次event = 1时，正常运行，第二次event等于1,即建立连接之后处理请求有问题，已经锁定时(task.fun)(task.args)"调用问题。最终确定问题时taskQueue初始化方式错误，用resize似乎并不能有效初始化。
+bug4： readn读出0个字符串，terminate called after throwing an instance of 'std::length_error'。
+经过长时间的分析发现，是因为read不能接受数据，为什么在这个程序不能接收，而在之前的版本可以接收呢。
+这个要搞明白
+bug5:读取到了数据不返回网页，原因：数据是一次传输完成的，原先的程序设计只有一个阶段，只分析了头部，没有分析其他部分，改成while循环，使其遍历每个过程。
