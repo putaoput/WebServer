@@ -53,8 +53,8 @@ Log::Log()
 		if (_maxQueueSize > 0) {
 			isAsync = true;
 			if (!UPdeque) {
-				//新建一个blockdeque容器,然后用unique_ptr管理。
-				unique_ptr<BlockDeque<std::string>> newDeque(new BlockDeque<std::string>);
+				//新建一个thread_safe_deque容器,然后用unique_ptr管理。
+				unique_ptr<LT::thread_safe_deque<std::string>> newDeque(new LT::thread_safe_deque<std::string>);
 				UPdeque = move(newDeque);
 				//新建一个写日志的线程
 				std::unique_ptr<std::thread> newThread(new thread(flush_log_thread));

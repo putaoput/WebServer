@@ -10,10 +10,6 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "deque.h"
-#include "vector.h"
-#include "string.h"
-
 
 namespace LT {
     template<class T, class Sequence = std::deque<T>>
@@ -139,8 +135,7 @@ namespace LT {
         {
             std::unique_lock<std::mutex> locker(mtx_);
             while (container_.empty()) {
-                if (condConsumer_.wait_for(locker, std::chrono::seconds(_timeout))
-                    == std::cv_status::_timeout) {
+                if (condConsumer_.wait_for(locker, std::chrono::seconds(_timeout)) == std::cv_status::timeout) {
                     return false;
                 }
                 if (isClose_) {

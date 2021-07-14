@@ -4,7 +4,6 @@
 #include <signal.h>
 #include <iostream>
 #include <string.h>
-//#include <unistd.h> //getopt用来分析命令行参数
 
 #define __DEBUG__ //开启调试模式，如果不调试的话可以直接注释掉这一行
 
@@ -40,7 +39,7 @@ int main(int argc, char* argv[]) {
 	if (sigaction(SIGPIPE, &sa, NULL)) {
 		return -1;
 	}
-
+	cout << 1;
 	//首先新建日志，方便记录服务器的启动情况
 	Log::instance()->init(0, "./Log", "Log", 1024);
 	//连接到数据库
@@ -50,7 +49,7 @@ int main(int argc, char* argv[]) {
 	//初始化一些单例：
 	MimeType::instance()->init();
 	WebPage::instance()->init();
-		
+	cout << 2;	
 	//可以输出的参数有 -p port, 
 	if (argc == 1) {
 		cout << "the first arg is port_num, the second is pthread num,please divided by black:" << endl;
@@ -62,32 +61,33 @@ int main(int argc, char* argv[]) {
 	}
 
 	do {
-		ThreadPool::create(atoi(argv[2]), QUEUE_NUM);
+		 ThreadPool::create(atoi(argv[2]));
 		if (!ThreadPool::is_valid()) {
 			cout << "myEpoll init failed!!!" << endl;
 			return -1;
 		}
-
+		cout << 3;
 		//新建一个计时器，处理所有超时对象
 		shared_ptr<TimerManager> timerManager(new TimerManager);
 		if (!timerManager->is_valid()) {
 			cout << "timerManager init failed!!!\n" << endl;
 			return -1;
 		}
-
+		cout << 4;
 		//新建一个epoll对象，作为reactor模型的主线程，处理所有的读写就绪事件
 		shared_ptr<MyEpoll> myEpoll(new MyEpoll(atoi(argv[1]), timerManager));
 		if (!myEpoll->is_valid()) {
 			cout << "myEpoll init failed!!!" << endl;
 			return -1;
 		}
-	
+		cout << 5;
 		//Log::Instance()->init(logLevel, "./log", ".log", logQueSize);
 		LOG_INFO("The WebServer init");
 		LOG_INFO("Port:%d", atoi(argv[1]),"           Thread num:%d",atoi(argv[2]));
 
 	//启动
 		while (true) {
+			cout << 6;
 			myEpoll->wait(MAX_EVENATS, -1, PATH);
 			timerManager->pop();//处理超时事件,这里可以理解成把优先队列封装完之后,重写了pop
 		}

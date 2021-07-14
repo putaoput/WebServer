@@ -3,7 +3,7 @@ OBJS    := $(patsubst %.c,%.o,$(patsubst %.cpp,%.o,$(SOURCE)))
 
 TARGET  := myserver
 CC      := g++
-LIBS    := -lpthread -lmysqlclient
+LIBS    := -lpthread -lmysqlclient  -latomic 
 #CFLAGS  := -std=c++11 -g -Wall -O3 $(INCLUDE)
 CFLAGS  := -std=c++11 -g -Og 
 CXXFLAGS:= $(CFLAGS)
