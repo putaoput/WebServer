@@ -54,11 +54,11 @@ namespace LT {
 
         //定义vector内部的三个重要的指针
     private:
-        atomic_node_pointer start_;
-        std::atomic<size_type> front_; //用来标识循环数组的头
-        std::atomic<size_type> back_;  //用来标识循环数组的尾
-        std::atomic<int> writableCount_; //用来确定任务队列是否为空，或者为满
-        std::atomic<int> readableCount_;
+        volatile atomic_node_pointer start_;
+        volatile std::atomic<size_type> front_; //用来标识循环数组的头
+        volatile std::atomic<size_type> back_;  //用来标识循环数组的尾
+        volatile std::atomic<int> writableCount_; //用来确定任务队列是否为空，或者为满
+        volatile std::atomic<int> readableCount_;
 
 
 /////********************************************************************************************************
